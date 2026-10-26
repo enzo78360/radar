@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar</title>
+<style>
+:root {
+  --bg: #0b0f14;
+  --panel: #121820;
+  --panel2: #18202a;
+  --line: #222c38;
+  --text: #e7edf3;
+  --muted: #8796a8;
+  --accent: #3ee6a8;
+  --danger: #ff6b6b;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 60px; }
+
+header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; letter-spacing: .3px; }
+.brand svg { width: 28px; height: 28px; }
+#rootPath { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel2); border-radius: 8px; padding: 7px 12px;
+}
+.btn:hover { border-color: #33414f; }
+.btn.small { padding: 3px 8px; font-size: 12px; border-radius: 6px; }
+.btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.btn.primary { background: var(--accent); color: #05140e; border-color: var(--accent); font-weight: 600; }
+
+/* --- Écran d'analyse ---------------------------------------------------- */
+#scanning { display: flex; flex-direction: column; align-items: center; padding: 50px 0; gap: 26px; }
+.scope {
+  position: relative; width: min(360px, 80vw); aspect-ratio: 1; border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 0 24%, #3ee6a822 24.3% 24.6%, transparent 25% 49%, #3ee6a822 49.3% 49.6%, transparent 50% 74%, #3ee6a822 74.3% 74.6%, transparent 75%),
+    radial-gradient(circle, #0f1d1a, #070b0e 70%);
+  border: 1px solid #3ee6a855;
+  box-shadow: 0 0 60px #3ee6a81a, inset 0 0 40px #000;
+  overflow: hidden;
+}
+.scope::before, .scope::after {
+  content: ''; position: absolute; background: #3ee6a822;
+}
+.scope::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+.scope::after { top: 50%; left: 0; right: 0; height: 1px; }
+.sweep {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, #3ee6a800 0deg, #3ee6a800 280deg, #3ee6a855 350deg, #3ee6a8cc 360deg);
+  animation: spin 2.4s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.blip {
+  position: absolute; width: 6px; height: 6px; margin: -3px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 10px var(--accent);
+  animation: fade 2.4s ease-out forwards;
+}
+@keyframes fade { from { opacity: 1; transform: scale(1.4); } to { opacity: 0; transform: scale(.6); } }
+.counters { display: flex; gap: 34px; text-align: center; }
+.counters b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
+.counters span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+#current {
+  max-width: min(700px, 90vw); color: var(--muted); font: 12px ui-monospace, monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: center;
+}
+
+/* --- Résultats ---------------------------------------------------------- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 12px; }
+.stat.hot b { color: var(--accent); }
+
+.disk { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+.diskbar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: #1d2631; margin: 8px 0; }
+.diskbar div { height: 100%; transition: width .6s; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; color: var(--muted); font-size: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+.explorer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.chartbox { position: relative; display: flex; align-items: center; justify-content: center; }
+#sun { width: 100%; max-width: 560px; aspect-ratio: 1; display: block; }
+#sun path { stroke: var(--panel); stroke-width: 1; cursor: pointer; transition: opacity .15s; }
+#sun path.leaf { cursor: default; }
+#sun.focus path { opacity: .35; }
+#sun.focus path.on { opacity: 1; }
+#sun .center { cursor: pointer; }
+#sun g.anim { animation: pop .45s cubic-bezier(.2,.8,.2,1); transform-origin: 300px 300px; }
+@keyframes pop { from { opacity: 0; transform: scale(.85) rotate(-8deg); } }
+#tip {
+  position: fixed; pointer-events: none; background: #0b0f14ee; border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; font-size: 12px; display: none; z-index: 5; max-width: 320px;
+}
+#tip b { display: block; font-size: 13px; word-break: break-all; }
+
+#crumbs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; font-size: 13px; }
+#crumbs button { background: none; border: 0; padding: 2px 4px; color: var(--muted); border-radius: 4px; }
+#crumbs button:hover { color: var(--text); background: var(--panel2); }
+#crumbs button:last-child { color: var(--text); font-weight: 600; }
+#crumbs span { color: #3a4654; }
+
+.rows { list-style: none; margin: 0; padding: 0; max-height: 560px; overflow: auto; }
+.row {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) 76px auto; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 8px;
+}
+.row:hover, .row.on { background: var(--panel2); }
+.row.dir { cursor: pointer; }
+.row .sw { width: 10px; height: 10px; border-radius: 3px; }
+.row .nm { min-width: 0; }
+.row .nm div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .nm small { color: var(--muted); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .bar { height: 3px; background: #1d2631; border-radius: 2px; margin-top: 4px; }
+.row .bar i { display: block; height: 100%; border-radius: 2px; }
+.row .sz { text-align: right; font-variant-numeric: tabular-nums; }
+.row .act { display: flex; gap: 4px; opacity: 0; }
+.row:hover .act, .row.on .act { opacity: 1; }
+.row.rest { color: var(--muted); }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tabs button { background: none; border: 1px solid transparent; border-radius: 8px; padding: 7px 12px; color: var(--muted); }
+.tabs button.on { color: var(--text); background: var(--panel); border-color: var(--line); }
+.tabs button em { font-style: normal; color: var(--accent); margin-left: 6px; }
+
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
+.group h3 { margin: 0; font-size: 15px; display: flex; justify-content: space-between; gap: 10px; }
+.group h3 b { color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.group p { margin: 6px 0 10px; color: var(--muted); font-size: 13px; }
+.group details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.group .rows { max-height: 260px; margin-top: 6px; }
+.group .row, #topList .row { grid-template-columns: minmax(0, 1fr) 76px auto; }
+
+.types .t { display: grid; grid-template-columns: 190px minmax(0, 1fr) 90px; gap: 12px; align-items: center; padding: 6px 0; }
+.types .t .bar { height: 10px; border-radius: 5px; background: #1d2631; overflow: hidden; }
+.types .t .bar i { display: block; height: 100%; border-radius: 5px; }
+.types .t span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+.empty { color: var(--muted); padding: 20px; text-align: center; }
+
+dialog {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px;
+  padding: 22px; max-width: 440px; width: calc(100% - 32px);
+}
+dialog::backdrop { background: #0008; backdrop-filter: blur(3px); }
+dialog h2 { margin: 0 0 8px; font-size: 18px; }
+dialog p { color: var(--muted); margin: 0 0 18px; word-break: break-word; }
+dialog .btns { display: flex; justify-content: flex-end; gap: 8px; }
+
+#toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(120px);
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px;
+  transition: transform .3s; z-index: 10; max-width: calc(100% - 32px);
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.err { border-color: var(--danger); }
+
+@media (max-width: 900px) {
+  .explorer { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .types .t { grid-template-columns: 110px minmax(0, 1fr) 70px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#3ee6a8" stroke-width="2">
+        <circle cx="16" cy="16" r="13" opacity=".5"/><circle cx="16" cy="16" r="7" opacity=".5"/>
+        <path d="M16 16 L26 8"/><circle cx="22" cy="20" r="1.6" fill="#3ee6a8" stroke="none"/>
+      </svg>
+      Radar
+    </div>
+    <div id="rootPath"></div>
+    <button class="btn" id="rescan" hidden>Relancer l'analyse</button>
+  </header>
+
+  <section id="scanning">
+    <div class="scope" id="scope"><div class="sweep"></div></div>
+    <div class="counters">
+      <div><b id="cFiles">0</b><span>fichiers</span></div>
+      <div><b id="cBytes">0 o</b><span>analysés</span></div>
+      <div><b id="cTime">0 s</b><span>écoulées</span></div>
+    </div>
+    <div id="current"></div>
+  </section>
+
+  <section id="results" hidden>
+    <div class="stats">
+      <div class="stat"><b id="sTotal"></b><span>dans ce dossier</span></div>
+      <div class="stat"><b id="sCount"></b><span>fichiers</span></div>
+      <div class="stat hot"><b id="sClean"></b><span>récupérables facilement</span></div>
+      <div class="stat"><b id="sFree"></b><span>libres sur le disque</span></div>
+    </div>
+
+    <div class="disk">
+      <div class="diskbar" id="diskbar"></div>
+      <div class="legend" id="diskLegend"></div>
+    </div>
+
+    <div class="explorer">
+      <div class="card chartbox"><svg id="sun" viewBox="0 0 600 600"></svg></div>
+      <div class="card">
+        <nav id="crumbs"></nav>
+        <ul class="rows" id="list"></ul>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button data-tab="clean" class="on">Pistes de nettoyage<em id="tClean"></em></button>
+      <button data-tab="top">Plus gros fichiers</button>
+      <button data-tab="types">Par type</button>
+    </div>
+    <div class="tab" id="tab-clean"><div class="groups" id="groups"></div></div>
+    <div class="tab card" id="tab-top" hidden><ul class="rows" id="topList"></ul></div>
+    <div class="tab card types" id="tab-types" hidden></div>
+  </section>
+</div>
+
+<div id="tip"></div>
+<div id="toast"></div>
+<dialog id="confirm">
+  <h2>Mettre à la corbeille ?</h2>
+  <p id="confirmText"></p>
+  <div class="btns">
+    <button class="btn" value="cancel" id="cancelBtn">Annuler</button>
+    <button class="btn primary" id="okBtn">Mettre à la corbeille</button>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+const TOKEN = '__TOKEN__';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function fmt(b) {
+  const u = ['o', 'Ko', 'Mo', 'Go', 'To'];
+  let i = 0;
+  while (b >= 1000 && i < u.length - 1) { b /= 1000; i++; }
+  return b.toLocaleString('fr-FR', { maximumFractionDigits: i && b < 10 ? 1 : 0 }) + ' ' + u[i];
+}
+const num = n => n.toLocaleString('fr-FR');
+const baseName = p => p.split('/').pop();
+const dirName = p => p.split('/').slice(0, -1).join('/');
+
+async function api(url, body) {
+  const r = await fetch(url, body ? {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Radar-Token': TOKEN },
+    body: JSON.stringify(body),
+  } : undefined);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function toast(msg, err) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'show' + (err ? ' err' : '');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (t.className = ''), 4000);
+}
+
+// --- Analyse en cours ------------------------------------------------------
+
+let summary = null;
+
+async function poll() {
+  const s = await api('/api/status');
+  $('#rootPath').textContent = s.root;
+  $('#cFiles').textContent = num(s.files);
+  $('#cBytes').textContent = fmt(s.bytes);
+  $('#cTime').textContent = Math.round(s.elapsed) + ' s';
+  $('#current').textContent = s.current;
+  if (s.state === 'done') return showResults();
+  if (Math.random() < 0.6) blip();
+  setTimeout(poll, 250);
+}
+
+function blip() {
+  const b = document.createElement('div');
+  const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 36;
+  b.className = 'blip';
+  b.style.left = 50 + Math.cos(a) * r + '%';
+  b.style.top = 50 + Math.sin(a) * r + '%';
+  $('#scope').appendChild(b);
+  setTimeout(() => b.remove(), 2400);
+}
+
+function showScanning() {
+  $('#results').hidden = true;
+  $('#rescan').hidden = true;
+  $('#scanning').hidden = false;
+  poll();
+}
+
+async function showResults() {
+  await loadSummary();
+  await navigate('');
+  $('#scanning').hidden = true;
+  $('#results').hidden = false;
+  $('#rescan').hidden = false;
+}
+
+// --- Résumé ----------------------------------------------------------------
+
+const TYPE_COLORS = {
+  'Vidéos': '#ff7a59', 'Images': '#ffc857', 'Audio': '#c77dff', 'Documents': '#4cc9f0',
+  'Archives et installeurs': '#f72585', 'Code': '#3ee6a8', 'Applications': '#4895ef', 'Autres': '#6c7a89',
+};
+
+async function loadSummary() {
+  summary = await api('/api/summary');
+  const s = summary, d = s.disk;
+  const clean = s.cleanup.reduce((a, g) => a + g.size, 0);
+  $('#sTotal').textContent = fmt(s.total);
+  $('#sCount').textContent = num(s.count);
+  $('#sClean').textContent = fmt(clean);
+  $('#sFree').textContent = fmt(d.free);
+  $('#tClean').textContent = clean ? fmt(clean) : '';
+
+  const mine = Math.min(s.total, d.used);
+  const parts = [
+    ['Ce dossier', mine, '#3ee6a8'],
+    ['Reste du disque', Math.max(0, d.used - mine), '#4a5a6c'],
+    ['Libre', d.free, '#1d2631'],
+  ];
+  $('#diskbar').innerHTML = parts.map(([, v, c]) => `<div style="width:${v / d.total * 100}%;background:${c}"></div>`).join('');
+  $('#diskLegend').innerHTML = parts.map(([n, v, c]) => `<span><i style="background:${c}"></i>${n} · ${fmt(v)}</span>`).join('')
+    + `<span>Disque · ${fmt(d.total)}</span>`
+    + (s.errors ? `<span title="Dossiers protégés par macOS ou illisibles">${num(s.errors)} éléments inaccessibles</span>` : '')
+    + `<span>Analysé en ${s.elapsed.toLocaleString('fr-FR')} s</span>`;
+
+  $('#groups').innerHTML = s.cleanup.length ? s.cleanup.map(g => `
+    <div class="card group">
+      <h3>${esc(g.title)}<b>${fmt(g.size)}</b></h3>
+      <p>${esc(g.why)}</p>
+      <details${g.n === 1 ? ' open' : ''}>
+        <summary>${g.n} élément${g.n > 1 ? 's' : ''}</summary>
+        <ul class="rows">${g.items.map(itemRow).join('')}</ul>
+      </details>
+    </div>`).join('') : '<div class="empty card">Rien d\'évident à nettoyer ici. Bravo !</div>';
+
+  $('#topList').innerHTML = s.top.map(itemRow).join('') || '<div class="empty">Aucun gros fichier.</div>';
+
+  const max = s.categories[0] ? s.categories[0].size : 1;
+  $('#tab-types').innerHTML = s.categories.map(c => `
+    <div class="t"><span>${esc(c.name)}</span>
+      <div class="bar"><i style="width:${c.size / max * 100}%;background:${TYPE_COLORS[c.name] || '#6c7a89'}"></i></div>
+      <span>${fmt(c.size)}</span></div>`).join('');
+}
+
+function itemRow(it) {
+  return `<li class="row" data-path="${esc(it.path)}">
+    <div class="nm"><div>${esc(baseName(it.path))}</div><small>${esc(dirName(it.path) || summary.name)}</small></div>
+    <span class="sz">${fmt(it.size)}</span>
+    ${actions(it.path)}
+  </li>`;
+}
+
+function actions(path) {
+  return `<span class="act">
+    <button class="btn small" data-reveal="${esc(path)}" title="Afficher dans le Finder">Finder</button>
+    <button class="btn small danger" data-trash="${esc(path)}" title="Mettre à la corbeille">Corbeille</button>
+  </span>`;
+}
+
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  for (const x of $('#tabs').children) x.classList.toggle('on', x === b);
+  for (const t of document.querySelectorAll('.tab')) t.hidden = t.id !== 'tab-' + b.dataset.tab;
+});
+
+// --- Explorateur en anneaux --------------------------------------------------
+
+const C = 300, R = 292, R0 = 78, RINGS = 4, RW = (R - R0) / RINGS;
+let view = null;
+
+function arcPath(a0, a1, r0, r1) {
+  if (a1 - a0 > Math.PI * 2 - 1e-4) a1 = a0 + Math.PI * 2 - 1e-4;
+  const p = (r, a) => (C + r * Math.sin(a)).toFixed(2) + ',' + (C - r * Math.cos(a)).toFixed(2);
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M${p(r1, a0)}A${r1},${r1} 0 ${large} 1 ${p(r1, a1)}L${p(r0, a1)}A${r0},${r0} 0 ${large} 0 ${p(r0, a0)}Z`;
+}
+
+function colorFor(node, hue, depth) {
+  if (node.type === 'rest') return `hsl(215, 10%, ${22 + depth * 3}%)`;
+  if (node.type === 'file') return `hsl(${hue}, 30%, ${38 + depth * 6}%)`;
+  return `hsl(${hue}, 70%, ${42 + depth * 7}%)`;
+}
+
+// Chaque enfant direct reçoit sa teinte ; ses descendants la gardent.
+function hueOf(i) { return (165 + i * 47) % 360; }
+
+function draw(data) {
+  const out = [];
+  const total = data.size || 1;
+  function layout(node, a0, a1, depth, hue) {
+    if (!node.children || depth > RINGS) return;
+    let a = a0;
+    node.children.forEach((c, i) => {
+      const span = (a1 - a0) * c.size / (node.size || 1);
+      const h = depth === 1 ? hueOf(i) : hue;
+      if (span > 0.003) {
+        const cls = c.type === 'dir' ? '' : 'leaf';
+        out.push(`<path d="${arcPath(a, a + span, R0 + (depth - 1) * RW + 1, R0 + depth * RW)}" fill="${colorFor(c, h, depth)}"
+          class="${cls}" data-path="${esc(c.path || '')}" data-type="${c.type}" data-name="${esc(c.name)}" data-size="${c.size}"
+          data-top="${esc(depth === 1 ? (c.path || '#' + i) : '')}"></path>`);
+        if (c.type === 'dir') layout(c, a, a + span, depth + 1, h);
+      }
+      a += span;
+    });
+  }
+  layout(data, 0, Math.PI * 2, 1, 0);
+  const label = esc(data.name.length > 22 ? data.name.slice(0, 21) + '…' : data.name);
+  $('#sun').innerHTML = `<g class="anim">${out.join('')}</g>
+    <g class="center">
+      <circle cx="${C}" cy="${C}" r="${R0 - 4}" fill="#0b0f14" stroke="#222c38"></circle>
+      <text x="${C}" y="${C - 6}" text-anchor="middle" fill="#e7edf3" font-size="15" font-weight="600">${label}</text>
+      <text x="${C}" y="${C + 16}" text-anchor="middle" fill="#3ee6a8" font-size="14">${fmt(total)}</text>
+      ${data.path ? `<text x="${C}" y="${C + 36}" text-anchor="middle" fill="#8796a8" font-size="11">↑ remonter</text>` : ''}
+    </g>`;
+}
+
+function topKey(path) {
+  // Clé de l'ancêtre direct (niveau 1) d'un élément, pour relier anneau et liste.
+  const rest = view.path ? path.slice(view.path.length + 1) : path;
+  return view.path ? view.path + '/' + rest.split('/')[0] : rest.split('/')[0];
+}
+
+function renderList(data) {
+  const total = data.size || 1;
+  $('#list').innerHTML = (data.children || []).map((c, i) => {
+    const pct = c.size / total * 100;
+    const col = colorFor(c, hueOf(i), 1);
+    const sub = c.type === 'dir' ? `${num(c.count)} fichier${c.count > 1 ? 's' : ''}`: c.type === 'file' ? 'fichier' : '';
+    return `<li class="row ${c.type}" data-path="${esc(c.path || '')}" data-key="${esc(c.path || '#' + i)}">
+      <span class="sw" style="background:${col}"></span>
+      <div class="nm"><div>${esc(c.name)}</div><small>${sub} · ${pct.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</small>
+        <div class="bar"><i style="width:${pct}%;background:${col}"></i></div></div>
+      <span class="sz">${fmt(c.size)}</span>
+      ${c.type === 'rest' ? '<span></span>' : actions(c.path)}
+    </li>`;
+  }).join('') || '<div class="empty">Dossier vide.</div>';
+}
+
+function renderCrumbs(path) {
+  const parts = path ? path.split('/') : [];
+  const items = [`<button data-go="">${esc(summary.name)}</button>`];
+  parts.forEach((p, i) => items.push(`<span>/</span><button data-go="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</button>`));
+  $('#crumbs').innerHTML = items.join('');
+}
+
+async function navigate(path) {
+  try {
+    view = await api('/api/dir?depth=' + RINGS + '&path=' + encodeURIComponent(path));
+  } catch (e) {
+    // Le dossier a pu disparaître : on remonte jusqu'au premier qui existe.
+    if (path) return navigate(dirName(path));
+    throw e;
+  }
+  draw(view);
+  renderList(view);
+  renderCrumbs(view.path);
+}
+
+// Survol : infobulle + mise en évidence croisée anneau / liste.
+const tip = $('#tip');
+function highlight(key) {
+  $('#sun').classList.toggle('focus', !!key);
+  for (const p of $('#sun').querySelectorAll('path')) {
+    p.classList.toggle('on', !!key && (p.dataset.top === key || (p.dataset.path || '').startsWith(key + '/')));
+  }
+  for (const r of $('#list').children) r.classList.toggle('on', r.dataset.key === key);
+}
+
+$('#sun').addEventListener('mousemove', e => {
+  const p = e.target.closest('path');
+  if (!p) { tip.style.display = 'none'; highlight(null); return; }
+  const size = +p.dataset.size;
+  tip.innerHTML = `<b>${esc(p.dataset.name)}</b>${fmt(size)} · ${(size / view.size * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} % de ${esc(view.name)}`;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = e.clientY + 14 + 'px';
+  highlight(p.dataset.path ? topKey(p.dataset.path) : p.dataset.top);
+});
+$('#sun').addEventListener('mouseleave', () => { tip.style.display = 'none'; highlight(null); });
+$('#sun').addEventListener('click', e => {
+  if (e.target.closest('.center')) { if (view.path) navigate(dirName(view.path)); return; }
+  const p = e.target.closest('path');
+  if (p && p.dataset.type === 'dir') navigate(p.dataset.path);
+});
+
+$('#list').addEventListener('mouseover', e => {
+  const r = e.target.closest('.row');
+  highlight(r ? r.dataset.key : null);
+});
+$('#list').addEventListener('mouseleave', () => highlight(null));
+$('#crumbs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) navigate(b.dataset.go);
+});
+
+// --- Actions -----------------------------------------------------------------
+
+document.addEventListener('click', async e => {
+  const rv = e.target.closest('[data-reveal]');
+  const tr = e.target.closest('[data-trash]');
+  if (rv) {
+    e.stopPropagation();
+    try { await api('/api/reveal', { path: rv.dataset.reveal }); } catch (err) { toast(err.message, true); }
+    return;
+  }
+  if (tr) {
+    e.stopPropagation();
+    return askTrash(tr.dataset.trash);
+  }
+  const row = e.target.closest('#list .row.dir');
+  if (row) navigate(row.dataset.path);
+}, true);
+
+let pending = null;
+function askTrash(path) {
+  pending = path;
+  const size = e => e && e.size;
+  const known = (view.children || []).find(c => c.path === path) || summary.top.find(t => t.path === path)
+    || summary.cleanup.flatMap(g => g.items).find(t => t.path === path);
+  $('#confirmText').innerHTML = `<b>${esc(baseName(path))}</b>${known ? ' · ' + fmt(size(known)) : ''}<br>
+    <small>${esc(summary.root + '/' + path)}</small><br><br>
+    Tu pourras le récupérer depuis la corbeille du Finder. L'espace n'est libéré qu'une fois la corbeille vidée.`;
+  $('#confirm').showModal();
+}
+$('#cancelBtn').addEventListener('click', () => $('#confirm').close());
+$('#okBtn').addEventListener('click', async () => {
+  $('#confirm').close();
+  const path = pending;
+  try {
+    const r = await api('/api/trash', { path });
+    toast(`« ${baseName(path)} » est dans la corbeille (${fmt(r.freed)}).`);
+    await loadSummary();
+    await navigate(view.path === path || view.path.startsWith(path + '/') ? dirName(path) : view.path);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('#rescan').addEventListener('click', async () => {
+  await api('/api/rescan', {});
+  showScanning();
+});
+
+showScanning();
+</script>
+</body>
+</html>
